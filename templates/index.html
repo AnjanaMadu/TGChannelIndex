@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Indexer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-screen flex items-center justify-center p-4">
+    <div class="absolute inset-0 overflow-hidden">
+        <div class="absolute -top-40 -right-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20" style="animation: blob 7s infinite 2s"></div>
+    </div>
+
+    <div class="relative w-full max-w-2xl">
+        <div class="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl">
+            <h1 class="text-3xl font-bold text-center text-white mb-2">Telegram Indexer</h1>
+            <p class="text-center text-slate-300 text-sm mb-8">Generate streaming links for your Telegram messages</p>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="messageLink" class="block text-sm font-medium text-slate-200 mb-2">Start Message Link</label>
+                    <input type="text" id="messageLink" placeholder="https://t.me/channel/123456" autocomplete="off" class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white/20 transition">
+                </div>
+
+                <div>
+                    <label for="messageCount" class="block text-sm font-medium text-slate-200 mb-2">Number of Messages</label>
+                    <input type="number" id="messageCount" placeholder="e.g., 10" min="1" max="1000" autocomplete="off" class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white/20 transition">
+                </div>
+
+                <button id="generateBtn" class="w-full mt-6 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    <span>Generate Links</span>
+                </button>
+            </div>
+
+            <div id="resultsSection" style="display: none;" class="mt-8 p-4 bg-white/5 border border-white/10 rounded-2xl">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-white/5 p-3 rounded-lg">
+                        <p class="text-xs text-slate-400">Generated</p>
+                        <p class="text-lg font-semibold text-cyan-400" id="statsCount">0</p>
+                    </div>
+                    <div class="bg-white/5 p-3 rounded-lg">
+                        <p class="text-xs text-slate-400">Status</p>
+                        <p class="text-lg font-semibold text-cyan-400" id="statsStatus">Ready</p>
+                    </div>
+                </div>
+                <label for="result" class="block text-sm font-medium text-slate-200 mb-2">Generated Links</label>
+                <textarea id="result" placeholder="Your generated links will appear here..." readonly class="w-full h-48 px-4 py-3 rounded-lg bg-white/5 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm font-mono"></textarea>
+                <button id="copyBtn" class="w-full mt-4 px-4 py-3 bg-white/10 border border-white/20 text-white font-medium rounded-lg hover:bg-white/20 hover:border-white/30 transition">Copy Links</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes blob {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+        .animate-blob { animation: blob 7s infinite; }
+    </style>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const messageLink = document.getElementById('messageLink');
+        const messageCount = document.getElementById('messageCount');
+        const result = document.getElementById('result');
+        const resultsSection = document.getElementById('resultsSection');
+        const statsCount = document.getElementById('statsCount');
+        const statsStatus = document.getElementById('statsStatus');
+
+        copyBtn.addEventListener('click', function() {
+            result.select();
+            document.execCommand('copy');
+            
+            const originalText = this.textContent;
+            this.textContent = '✓ Copied!';
+            this.classList.add('bg-cyan-500/20');
+            
+            setTimeout(() => {
+                this.textContent = originalText;
+                this.classList.remove('bg-cyan-500/20');
+            }, 2000);
+        });
+        
+        generateBtn.addEventListener('click', async function() {
+            const link = messageLink.value.trim();
+            const count = messageCount.value.trim();
+
+            if (!link || !count) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const urlParts = link.split('/');
+                const chatId = urlParts[urlParts.length - 2];
+                const startMessageId = parseInt(urlParts[urlParts.length - 1]);
+
+                if (isNaN(startMessageId) || !chatId) throw new Error("Invalid message link format");
+                if (isNaN(parseInt(count)) || count < 1) throw new Error("Invalid message count");
+
+                resultsSection.style.display = 'block';
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<span>Generating...</span>';
+                statsStatus.textContent = 'Processing';
+                result.value = '';
+
+                let results = "";
+                const hostname = window.location.hostname;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                const protocol = window.location.protocol;
+                
+                for (let i = 0; i < parseInt(count); i++) {
+                    const currentMessageId = startMessageId + i;
+                    const response = await fetch(`/generate?chatId=${chatId}&messageId=${currentMessageId}`, { credentials: 'same-origin' });
+                    
+                    if (!response.ok) throw new Error(`Failed to generate token for message ${currentMessageId}`);
+                    
+                    const data = await response.json();
+                    const token = data.token;
+                    results += `${protocol}//${hostname}${port}/stream/${token}\n`;
+                    
+                    statsCount.textContent = i + 1;
+                    result.value = results.trim();
+                }
+
+                statsStatus.textContent = 'Complete';
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<span>Generate Links</span>';
+            } catch (error) {
+                result.value = `Error: ${error.message}`;
+                statsStatus.textContent = 'Error';
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<span>Generate Links</span>';
+            }
+        });
+    </script>
+</body>
+</html>
